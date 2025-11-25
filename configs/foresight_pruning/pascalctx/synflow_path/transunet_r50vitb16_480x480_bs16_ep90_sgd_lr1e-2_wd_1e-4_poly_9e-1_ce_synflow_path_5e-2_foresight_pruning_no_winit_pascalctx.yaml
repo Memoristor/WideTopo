@@ -1,0 +1,148 @@
+globals:  # global settings
+  output_root: ./output  # The path for saving checkpoints, wandb, logs, results
+  log_level: info  # The log level for logger, options are `debug`, `info`, `warning`, `error`, and `critical`
+model:  # model settings
+  cls: TransUNetR50ViTB16  # The class name of the model, which needs to be included in the `models` package
+  kwargs:  # The parameters of the model class
+    num_class: 59
+    img_size: 480
+  input_keys:  # The keys of the tensor inputs
+    - image
+  output_keys:  # The keys of the tensor outputs
+    - logit
+optimizer:  # optimizer settings
+  cls: SGD  # The class name of the optimizer, which needs to be included in the `torch.optim` package
+  kwargs:  # The parameters of the optimizer class
+    lr: 0.01
+    momentum: 0.9
+    weight_decay: 0.0001
+learning_rate:  # learninig rate scheduler settings
+  step_mode: iteration  # The step mode for learning rate scheduler, options are `epoch`, `iteration`
+  warmup_steps: 0  # Number of steps of warmup strategy, Note that when the number of steps is greater than 0, the total number of steps of the post scheduler should be subtracted
+  cls: PolynomialLR  # The class name of the learning rate scheduler, which needs to be included in the `scheduler` package
+  kwargs:  # The parameters of the learning rate scheduler class
+    total_iters: 28170
+    power: 0.9
+dataset:  # dataset settings
+  cls: PascalContextDataset  # The class name of the dataset, which needs to be included in the `datasets` package
+  root_path: ~/datasets/PascalContext  # The root path of the dataset
+  ignore_class: 255  # The ignored class, class name (str) or class index (int) are supported
+  num_workers: 8  # How many subprocesses to use for data loading
+train:  # training settings
+  reload_pth: last_epoch.pth  # The pth file name that required to be loaded for training resuming
+  enable_amp: False  # Enable automatic mixed precision
+  num_epoch: 90  # The number of training epoch
+  batch_size: 16  # The total number of batch sizes for all GPUs
+  summary_freq: 300  # The frequency for flushing weight&bias summaries
+  dataset:  # The settings to determine how to load training dataset
+    kwargs:  # The parameters of the training dataset class
+      test_mode: False
+      image_dir: train/images
+      image_suffix: .jpg
+      label_dir: train/labels
+      label_suffix: .png
+    transforms:  # Data transforms included in the `datasets.transforms` package
+      func: random_scale_crop_hflip
+      kwargs:  # The parameters of the transform function
+        image_size: 
+          - 480
+          - 480
+        random_scale_prob: 1.0
+        random_scale_limit: 
+          - -0.5
+          - 1.0
+        horizontal_flip_prob: 0.5
+  metrics:  # Metric settings for training and validation
+    # acc:  # Metric key
+    #   cls: MulticlassAccuracy  # # The class name of the metric, which needs to be included in the `torchmetrics` package
+    #   kwargs:  # The parameters of the metric class
+    #     num_classes: 59
+    #     ignore_index: 255
+    #   tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+    #     - outputs: logit
+    #     - inputs: label
+    # iou: 
+    #   cls: MulticlassJaccardIndex
+    #   kwargs: 
+    #     num_classes: 59
+    #     ignore_index: 255
+    #   tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+    #     - outputs: logit
+    #     - inputs: label
+    # f1: 
+    #   cls: MulticlassF1Score
+    #   kwargs: 
+    #     num_classes: 59
+    #     ignore_index: 255
+    #   tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+    #     - outputs: logit
+    #     - inputs: label
+  losses:  # Loss settings for training and validation
+    ce2d:  # Loss key
+      cls: CrossEntropy2D  # The class name of the loss, which needs to be included in the `losses` package 
+      kwargs:  # The parameters of the loss class
+        ignore_index: 255
+      forward:  # The tensors keys for loss forward, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: MaskedSegmentationTrain
+valid:  # validation settings
+  reload_pth: last_epoch.pth  # The pth file name that required to be loaded for valiation
+  batch_size: 16  # The total number of batch sizes for all GPUs
+  summary_freq: 300  # The frequency for flushing weight&bias summaries
+  dataset:  # The settings to determine how to load training dataset
+    kwargs:  # The parameters of the validation dataset class
+      test_mode: False
+      image_dir: val/images
+      image_suffix: .jpg
+      label_dir: val/labels
+      label_suffix: .png
+    transforms:  # Data transforms included in the `datasets.transforms` package
+      func: resize_only
+      kwargs:  # The parameters of the transform function
+        image_size: 
+          - 480
+          - 480
+  metrics:  # Metric settings for training and validation
+    acc:  # Metric key
+      cls: MulticlassAccuracy  # # The class name of the metric, which needs to be included in the `torchmetrics` package
+      kwargs:  # The parameters of the metric class
+        num_classes: 59
+        ignore_index: 255
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    iou: 
+      cls: MulticlassJaccardIndex
+      kwargs: 
+        num_classes: 59
+        ignore_index: 255
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    f1: 
+      cls: MulticlassF1Score
+      kwargs: 
+        num_classes: 59
+        ignore_index: 255
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: MaskedSegmentationValid
+foresight_pruning:  # Foresight pruning settings
+  prunable_params: configs/prunable_params/transunet_r50vitb16_prune_conv2d_bn2d_ln2d_linear.yaml  # A yaml file that lists the prunable parameters names 
+  batch_size: 16  # The total number of batch sizes for all GPUs
+  sample_size: 100  # Load multiple batches so that each class roughly has ten samples
+  model_mode: eval  # SNIP, Iterative SNIP, and SNIP prune networks under train mode, while Synflow uses evaluation mode.
+  prune_iters: 100  # Number of iterations for scoring
+  target_density: 0.05  # Density level of model at the final prune epoch
+  density_scheduler: poly  # Density scheduler, `linear`, `cosine`, and `poly` are supported
+  mask_type: global  # Updates masks of model with scores by density level parameter-wise or global-wise, options are `global`, and `local`
+  restore_params: True  # After parameter pruning, the remained parameters will be restored to their initialized values
+  pruner:  # To determine which pruner shall be used
+    keyword: SynFlowPath  # The keyword of prunner, which can be shown in wandb as group key
+    cls: SynFlowPath  # The class name of the model pruner, which needs to be included in the `pruners` package
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: ModelPruning

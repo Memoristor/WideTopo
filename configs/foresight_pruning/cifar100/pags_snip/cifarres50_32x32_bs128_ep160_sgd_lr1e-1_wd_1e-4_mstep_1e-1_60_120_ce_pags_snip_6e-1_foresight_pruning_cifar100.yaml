@@ -1,0 +1,141 @@
+globals:  # global settings
+  output_root: ./output  # The path for saving checkpoints, wandb, logs, results
+  log_level: info  # The log level for logger, options are `debug`, `info`, `warning`, `error`, and `critical`
+model:  # model settings
+  cls: CIFARResNet50  # The class name of the model, which needs to be included in the `models` package
+  kwargs:  # The parameters of the model class
+    num_class: 100
+  input_keys:  # The keys of the tensor inputs
+    - image
+  output_keys:  # The keys of the tensor outputs
+    - logit
+optimizer:  # optimizer settings
+  cls: SGD  # The class name of the optimizer, which needs to be included in the `torch.optim` package
+  kwargs:  # The parameters of the optimizer class
+    lr: 0.1
+    momentum: 0.9
+    weight_decay: 0.0001
+learning_rate:  # learninig rate scheduler settings
+  step_mode: epoch  # The step mode for learning rate scheduler, options are `epoch`, `iteration`
+  warmup_steps: 0  # Number of steps of warmup strategy, Note that when the number of steps is greater than 0, the total number of steps of the post scheduler should be subtracted
+  cls: MultiStepLR  # The class name of the learning rate scheduler, which needs to be included in the `scheduler` package
+  kwargs:  # The parameters of the learning rate scheduler class
+    milestones:
+      - 60
+      - 120
+    gamma: 0.1
+dataset:  # dataset settings
+  cls: CIFAR100Dataset  # The class name of the dataset, which needs to be included in the `datasets` package
+  root_path: ~/datasets/cifar-100-python  # The root path of the dataset
+  ignore_class:  # The ignored class, class name (str) or class index (int) are supported
+  num_workers: 8  # How many subprocesses to use for data loading
+train:  # training settings
+  reload_pth: last_epoch.pth  # The pth file name that required to be loaded for training resuming
+  enable_amp: False  # Enable automatic mixed precision
+  num_epoch: 160  # The number of training epoch
+  batch_size: 128  # The total number of batch sizes for all GPUs
+  summary_freq: 300  # The frequency for flushing weight&bias summaries
+  dataset:  # The settings to determine how to load training dataset
+    kwargs:  # The parameters of the training dataset class
+      test_mode: False
+      image_dir: train
+      image_suffix: .png
+    transforms:  # Data transforms included in the `datasets.transforms` package
+      func: pad_random_crop_hflip
+      kwargs:  # The parameters of the transform function
+        image_size: 
+          - 32
+          - 32
+        padding_size: 
+          - 4
+          - 4
+        horizontal_flip_prob: 0.5
+  metrics:  # Metric settings for training and validation
+    acc:  # Metric key
+      cls: MulticlassAccuracy  # # The class name of the metric, which needs to be included in the `torchmetrics` package
+      kwargs:  # The parameters of the metric class
+        num_classes: 100
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    iou: 
+      cls: MulticlassJaccardIndex
+      kwargs: 
+        num_classes: 100
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    f1: 
+      cls: MulticlassF1Score
+      kwargs: 
+        num_classes: 100
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+  losses:  # Loss settings for training and validation
+    ce:  # Loss key
+      cls: CrossEntropy  # The class name of the loss, which needs to be included in the `losses` package 
+      kwargs:  # The parameters of the loss class
+          reduction: mean
+      forward:  # The tensors keys for loss forward, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: MaskedClassificationTrain
+valid:  # validation settings
+  reload_pth: last_epoch.pth  # The pth file name that required to be loaded for valiation
+  batch_size: 128  # The total number of batch sizes for all GPUs
+  summary_freq: 60  # The frequency for flushing weight&bias summaries
+  dataset:  # The settings to determine how to load training dataset
+    kwargs:  # The parameters of the validation dataset class
+      test_mode: False
+      image_dir: test
+      image_suffix: .png
+    transforms:  # Data transforms included in the `datasets.transforms` package
+      func: image_resize_only
+      kwargs:  # The parameters of the transform function
+        image_size: 
+          - 32
+          - 32
+  metrics:  # Metric settings for training and validation
+    acc:  # Metric key
+      cls: MulticlassAccuracy  # # The class name of the metric, which needs to be included in the `torchmetrics` package
+      kwargs:  # The parameters of the metric class
+        num_classes: 100
+        average: none
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    iou: 
+      cls: MulticlassJaccardIndex
+      kwargs: 
+        num_classes: 100
+        average: none
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+    f1: 
+      cls: MulticlassF1Score
+      kwargs: 
+        num_classes: 100
+        average: none
+      tensor_keys:  # The tensors keys for metric update, e.g. - input/output: key
+        - outputs: logit
+        - inputs: label
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: BasicValid
+foresight_pruning:  # Foresight pruning settings
+  prunable_params: configs/prunable_params/cifarres50_prune_conv2d_bn2d_linear.yaml  # A yaml file that lists the prunable parameters names 
+  weight_init: kaiming_normal_init  # The weight initialization method, which needs to be included in the `tools.weight_init` package
+  batch_size: 256  # The total number of batch sizes for all GPUs
+  sample_size: 1000  # Load multiple batches so that each class roughly has ten samples
+  model_mode: train  # SNIP, Iterative SNIP, and PAGS_SNIP prune networks under train mode, while Synflow uses evaluation mode.
+  prune_iters: 1  # Number of iterations for scoring
+  target_density: 0.6  # Density level of model at the final prune epoch
+  density_scheduler: poly  # Density scheduler, `linear`, `cosine`, and `poly` are supported
+  mask_type: custom  # Updates masks of model with scores by density level parameter-wise or global-wise, options are `global`, and `local`
+  pruner:  # To determine which pruner shall be used
+    keyword: PAGS_SNIP  # The keyword of prunner, which can be shown in wandb as group key
+    cls: PAGS_SNIP  # The class name of the model pruner, which needs to be included in the `pruners` package
+  engine:  # The class name of the running engine, which needs to be included in the `engines` package 
+    cls: ModelPruning
